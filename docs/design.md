@@ -41,37 +41,71 @@ Users are assigned roles at the **property level**, enabling scenarios such as:
 
 ---
 
-## 2. Permission Matrix (Role by Action)
+## 2. Proposed Permission Matrix
 
-| Role | View Tickets | Create Ticket | Assign Ticket | Internal Comments | Public Comments |
-|------|-------------|---------------|---------------|-------------------|-----------------|
-| **Patient / Resident** | Own tickets only | Yes (for own room/chair) | No | No | Yes |
-| **Staff / Technician** | Property-level / Assigned tickets only | No | No (Manager-controlled) | Yes | Yes |
-| **Manager / Admin** | All property tickets | Yes | Yes (Full assignment control) | Yes | Yes |
+### DeskOps – Permission Matrix
+
+| Action | Tenant Admin | Property Manager | Resident | Technician |
+|---|---|---|---|---|
+| Raise/Create Ticket | Yes | Yes | Yes | No |
+| View Ticket | Yes | Yes* | Yes* | Yes* |
+| Triage Ticket | Yes | Yes* | No | No |
+| Assign Technician | Yes | Yes* | No | No |
+| Update Ticket Status | Yes | Yes* | No | Yes* |
+| Resolve Ticket | Yes | Yes* | No | Yes* |
+| Close Ticket | Yes | Yes* | No | Yes* |
+| Reopen Ticket | Yes | Yes* | Yes* | No |
+| Add Internal Comment | Yes | Yes* | No | Yes* |
+| Add Public Comment | Yes | Yes* | Yes* | Yes* |
+| Merge Duplicate Tickets | Yes | Yes* | No | No |
+
+**Legend:**
+- **Yes** = Permitted
+- **No** = Denied
+- **Yes*** = Permitted only within assigned scope
+
+### Scope Rules
+
+- **Tenant Admin:** Within their own tenant.
+- **Property Manager:** Within assigned properties.
+- **Resident:** Tickets related to their own unit.
+- **Technician:** Tickets assigned to them or explicitly shared with them.
 
 ### Permission Details
 
-**Patient / Resident:**
-- Can only view tickets they personally created
-- Can create new tickets for their assigned room/chair
-- Cannot assign tickets to technicians
-- Cannot add internal (staff-only) comments
-- Can add public comments visible to all staff
-
-**Staff / Technician:**
-- Can view tickets assigned to them or within their property scope
-- Cannot create tickets (created by patients or managers)
-- Cannot assign tickets (assignment is manager-controlled)
-- Can add internal comments (staff coordination)
-- Can add public comments (visible to patient)
-
-**Manager / Admin:**
-- Can view all tickets within their property scope
-- Can create tickets on behalf of patients
-- Full control over ticket assignment to technicians
+**Tenant Admin:**
+- Full control over all tickets and operations within their tenant
+- Can create, view, triage, assign, update, resolve, close, and reopen tickets
 - Can add both internal and public comments
-- Can transition tickets through all states
+- Can merge duplicate tickets
+- Has unrestricted access across all properties in the tenant
 
+**Property Manager:**
+- Property-scoped permissions (only within assigned properties)
+- Can create tickets on behalf of residents
+- Can triage and assign tickets to technicians within their properties
+- Can update ticket status, resolve, close, and reopen tickets
+- Can add both internal and public comments
+- Can merge duplicate tickets within their property scope
+
+**Resident:**
+- Limited to tickets related to their own unit/room/chair
+- Can create new tickets for their assigned unit
+- Can view only their own tickets
+- Can reopen their own tickets within the reopen window
+- Can add public comments (visible to staff)
+- Cannot add internal comments or perform any assignment/triage operations
+
+**Technician:**
+- Can view only tickets assigned to them or explicitly shared
+- Cannot create tickets (tickets are created by residents or managers)
+- Cannot triage or assign tickets (manager-controlled)
+- Can update ticket status, resolve, and close tickets assigned to them
+- Cannot reopen tickets
+- Can add both internal comments (staff coordination) and public comments (visible to resident)
+- Cannot merge duplicate tickets
+
+**Note:** Some permissions are proposed and require final confirmation against the PRD and team decisions.
 ---
 
 ## 3. Ticket State Machine & Business Rules

@@ -1,0 +1,49 @@
+
+    /* Custom animations for log insertions and error shakes */
+    @keyframes highlightRow {
+        0% {
+            background-color: rgba(16, 185, 129, 0.25);
+        }
+        100% {
+            background-color: transparent;
+        }
+    }
+
+    .animate-row-insert {
+        animation: highlightRow 2s ease-out forwards;
+    }
+
+    @keyframes shake {
+        0%, 100% {
+            transform: translateX(0);
+        }
+        20%, 60% {
+            transform: translateX(-5px);
+        }
+        40%, 80% {
+            transform: translateX(5px);
+        }
+    }
+
+    .animate-shake {
+        animation: shake 0.35s ease-in-out;
+    }
+
+    /* Subtle custom scrollbar for JSON inspector and tables */
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: #0f172a;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: #334155;
+        border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: #475569;
+    }

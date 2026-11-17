@@ -1,0 +1,254 @@
+1. Project Task: Core Flows and Tenancy
+Your task has three main requirements:
+Every Prisma database model must have an organisationId field.
+Every database query must be restricted to the logged-in user's organisation.
+An automated test must prove that Organisation A cannot access Organisation B's ticket.
+Example
+Suppose there are two organisations:
+Organisation
+Ticket ID
+Organisation A
+TICKET-101
+Organisation B
+TICKET-202
+Expected result:
+Organisation A requests TICKET-101 → 200 OK
+Organisation A requests TICKET-202 → 404 Not Found
+Organisation B requests TICKET-202 → 200 OK
+This is called Tenant Isolation.
+2. Technologies Required
+Technology
+Purpose
+Node.js
+Backend
+TypeScript
+Programming
+Prisma ORM
+Database queries
+PostgreSQL
+Database
+Vitest
+Automated testing
+Supertest
+API testing
+GitHub Actions
+CI testing
+3. Database Schema
+Open:
+prisma/schema.prisma
+Example implementation:
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organisation {
+  id        String   @id @default(uuid())
+  name      String
+
+  users     User[]
+  tickets   Ticket[]
+
+  createdAt DateTime @default(now())
+}
+
+model User {
+  id             String @id @default(uuid())
+  name           String
+  email          String @unique
+
+  organisationId String
+  organisation   Organisation @relation(
+    fields: [organisationId],
+    references: [id]
+  )
+
+  tickets        Ticket[]
+}
+
+model Ticket {
+  id             String @id @default(uuid())
+  title          String
+  description    String?
+
+  organisationId String
+  organisation   Organisation @relation(
+    fields: [organisationId],
+    references: [id]
+  )
+
+  createdAt      DateTime @default(now())
+}
+Important: This is an example schema. In your actual project, you must add organisationId to every existing tenant-owned model, not just User and Ticket.
+4. Prisma Tenant Isolation
+Create:
+src/lib/tenantPrisma.ts
+This implementation automatically adds organisation restrictions to queries for tenant-owned models.
+import { PrismaClient } from "@prisma/client";
+
+const prisma = new PrismaClient();
+
+const tenantModels = new Set([
+  "User",
+  "Ticket",
+]);
+
+export function getTenantPrisma(
+  organisationId: string
+) {
+  if (!organisationId) {
+    throw new Error("Organisation ID is required");
+  }
+
+  return prisma.$extends({
+    query: {
+      $allModels: {
+        async $allOperations({
+          model,
+          operation,
+          args,
+          query,
+        }) {
+          if (!model || !tenantModels.has(model)) {
+            return query(args);
+          }
+
+          const scopedArgs: any = { ...args };
+
+          const tenantWhere = {
+            ...(scopedArgs.where || {}),
+            organisationId,
+          };
+
+          switch (operation) {
+            case "findUnique":
+            case "findUniqueOrThrow":
+            case "findFirst":
+            case "findFirstOrThrow":
+            case "findMany":
+            case "count":
+            case "aggregate":
+            case "groupBy":
+            case "update":
+            case "updateMany":
+            case "delete":
+            case "deleteMany":
+            case "upsert":
+              scopedArgs.where = tenantWhere;
+              break;
+
+            case "create":
+              scopedArgs.data = {
+                ...scopedArgs.data,
+                organisationId,
+              };
+              break;
+
+            case "createMany":
+              scopedArgs.data = Array.isArray(scopedArgs.data)
+                ? scopedArgs.data.map((item: any) => ({
+                    ...item,
+                    organisationId,
+                  }))
+                : {
+                    ...scopedArgs.data,
+                    organisationId,
+                  };
+              break;
+          }
+
+          return query(scopedArgs);
+        },
+      },
+    },
+  });
+}
+Note: Add every tenant-owned Prisma model to tenantModels. Review nested writes and raw SQL separately; this extension alone does not secure those operations.
+5. Ticket API
+Create:
+src/routes/ticket.ts
+import express from "express";
+import { getTenantPrisma } from "../lib/tenantPrisma";
+
+const router = express.Router();
+
+router.get("/:id", async (req, res) => {
+  try {
+    const organisationId = req.user.organisationId;
+
+    const db = getTenantPrisma(organisationId);
+
+    const ticket = await db.ticket.findFirst({
+      where: {
+        id: req.params.id,
+      },
+    });
+
+    if (!ticket) {
+      return res.status(404).json({
+        message: "Ticket not found",
+      });
+    }
+
+    return res.status(200).json(ticket);
+
+  } catch (error) {
+    return res.status(500).json({
+      message: "Internal server error",
+    });
+  }
+});
+
+export default router;
+Here, req.user.organisationId must come from verified authentication, not from a client-supplied request parameter.
+6. Automated Test Using Vitest
+Create:
+tests/tenant.test.ts
+import { describe, it, expect } from "vitest";
+import request from "supertest";
+import app from "../src/app";
+
+describe("Tenant Isolation", () => {
+
+  it("should return 404 when Org A requests Org B ticket", async () => {
+
+    const response = await request(app)
+      .get("/tickets/TICKET-202")
+      .set("Authorization", "Bearer ORG_A_TEST_TOKEN");
+
+    expect(response.status).toBe(404);
+
+  });
+
+});
+This test requires a test application, test database and valid authentication fixture. Seed Organisation A, Organisation B and their tickets before running it.
+7. Run Database Migration
+After updating your Prisma schema, execute:
+npx prisma format
+npx prisma validate
+npx prisma migrate dev --name add_organisation_id
+npx prisma generate
+8. Run Automated Tests
+Install dependencies:
+npm install -D vitest supertest
+Run:
+npx vitest run
+Your test should pass when Organisation A receives a 404 for Organisation B's ticket.
+9. Final Task Completion Checklist
+According to your LogicVeda assignment:
+Requirement
+Expected
+Every tenant model has organisationId
+✅
+Prisma queries are tenant-scoped
+✅
+Organisation A cannot access B's ticket
+✅
+Automated Vitest/Supertest test
+✅
+CI test passes on main branch
+Pending

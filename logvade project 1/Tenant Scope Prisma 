@@ -1,0 +1,251 @@
+1. Task Requirements
+Project Task: Tenant-scoped Prisma queries for every table with organisationId, plus an automated test where Org A gets 404 for Org B's ticket.
+You must complete these 3 requirements:
+Every Prisma model in schema.prisma must have an organisationId field.
+A Vitest or Supertest test must log in as Org A, request Org B's ticket ID, and receive 404 Not Found.
+The test must pass in CI on the main branch.
+2. Project Structure
+Use this structure (adjust it to your existing project):
+project/
+│
+├── prisma/
+│   └── schema.prisma
+│
+├── src/
+│   ├── config/
+│   │   └── prisma.ts
+│   │
+│   ├── middleware/
+│   │   └── auth.ts
+│   │
+│   ├── routes/
+│   │   └── ticket.routes.ts
+│   │
+│   ├── controllers/
+│   │   └── ticket.controller.ts
+│   │
+│   └── app.ts
+│
+├── tests/
+│   └── tenancy.test.ts
+│
+├── package.json
+└── tsconfig.json
+3. Prisma Schema Code
+File: prisma/schema.prisma
+Example schema:
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Organisation {
+  id     String   @id @default(uuid())
+  name   String
+
+  users   User[]
+  tickets Ticket[]
+}
+
+model User {
+  id             String @id @default(uuid())
+  name           String
+  email          String @unique
+  organisationId String
+
+  organisation Organisation @relation(
+    fields: [organisationId],
+    references: [id]
+  )
+
+  tickets Ticket[]
+}
+
+model Ticket {
+  id             String   @id @default(uuid())
+  title          String
+  description    String?
+  status         String   @default("OPEN")
+  organisationId String
+  createdAt      DateTime @default(now())
+
+  organisation Organisation @relation(
+    fields: [organisationId],
+    references: [id]
+  )
+
+  userId String
+  user   User @relation(
+    fields: [userId],
+    references: [id]
+  )
+
+  @@index([organisationId])
+}
+Important: Add organisationId to every existing Prisma model in your actual project, not just these three example models.
+4. Prisma Connection
+File: src/config/prisma.ts
+import { PrismaClient } from "@prisma/client";
+
+const prisma = new PrismaClient();
+
+export default prisma;
+5. Authentication Middleware
+File: src/middleware/auth.ts
+import { Request, Response, NextFunction } from "express";
+
+export interface AuthRequest extends Request {
+  user?: {
+    id: string;
+    organisationId: string;
+  };
+}
+
+export const authMiddleware = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+
+  // User must be authenticated.
+  // In production, populate this from a verified JWT/session.
+
+  if (!req.user) {
+    return res.status(401).json({
+      message: "Unauthorized"
+    });
+  }
+
+  next();
+};
+6. Ticket Controller
+File: src/controllers/ticket.controller.ts
+This is the most important part of your task.
+import { Response } from "express";
+import prisma from "../config/prisma";
+import { AuthRequest } from "../middleware/auth";
+
+export const getTicket = async (
+  req: AuthRequest,
+  res: Response
+) => {
+
+  try {
+
+    const { id } = req.params;
+
+    const organisationId = req.user?.organisationId;
+
+    if (!organisationId) {
+      return res.status(401).json({
+        message: "Unauthorized"
+      });
+    }
+
+    const ticket = await prisma.ticket.findFirst({
+      where: {
+        id: id,
+        organisationId: organisationId
+      }
+    });
+
+    if (!ticket) {
+      return res.status(404).json({
+        message: "Ticket not found"
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: ticket
+    });
+
+  } catch (error) {
+
+    return res.status(500).json({
+      message: "Internal server error"
+    });
+
+  }
+};
+Security point: Never fetch a ticket using only its ID. Always use both id and organisationId.
+7. Ticket Routes
+File: src/routes/ticket.routes.ts
+import express from "express";
+import { getTicket } from "../controllers/ticket.controller";
+
+const router = express.Router();
+
+router.get("/:id", getTicket);
+
+export default router;
+8. Automated Tenancy Test
+File: tests/tenancy.test.ts
+Using Vitest and Supertest:
+import { describe, it, expect, vi } from "vitest";
+import request from "supertest";
+import app from "../src/app";
+import prisma from "../src/config/prisma";
+
+vi.mock("../src/config/prisma", () => ({
+  default: {
+    ticket: {
+      findFirst: vi.fn()
+    }
+  }
+}));
+
+describe("Organisation Tenancy Security", () => {
+
+  it("Org A should get 404 for Org B ticket", async () => {
+
+    const ticketId = "ticket-org-b";
+
+    vi.mocked(prisma.ticket.findFirst).mockResolvedValue(null);
+
+    const response = await request(app)
+      .get(`/api/tickets/${ticketId}`)
+      .set("Authorization", "Bearer org-a-token");
+
+    expect(response.status).toBe(404);
+
+    expect(prisma.ticket.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: ticketId,
+        organisationId: "org-a"
+      }
+    });
+
+  });
+
+});
+9. Install Required Packages
+Run these commands in your VS Code terminal:
+npm install express @prisma/client
+npm install -D prisma typescript tsx vitest supertest @types/express @types/supertest
+Generate Prisma client:
+npx prisma generate
+Create database migration:
+npx prisma migrate dev --name add_organisation_tenancy
+Run tests:
+npx vitest run
+For existing database records, make sure you backfill the correct organisation IDs before making the new fields mandatory.
+10. Final Submission Checklist
+Requirement
+Status
+Every Prisma model has organisationId
+To implement
+Prisma queries are organisation-scoped
+To implement
+Org A cannot access Org B ticket
+Test included
+Response returns HTTP 404
+Test included
+Vitest automated testing
+Included
+CI test on main branch
+To configure

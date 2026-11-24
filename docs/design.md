@@ -490,6 +490,98 @@ io.to(`org:${ticket.organizationId}`)
 ✅ **Multi-tenant isolation strategy outlined**  
 ✅ **Concurrency control approach specified**
 
----
+# CR-1 – Merge Duplicate Tickets: Impact Estimate
+
+## 1. Requirement Overview
+
+As per CR-1 in the Phase 1 PRD, when two duplicate tickets are merged:
+
+- The original ticket remains open as the main ticket.
+- The duplicate ticket is closed.
+- Comments from the duplicate ticket are moved to the original ticket.
+- Watchers from the duplicate ticket are moved to the original ticket.
+
+The merge operation must preserve ticket history and maintain proper access control.
+
+## 2. Impact Analysis – What Changes?
+
+### A. Database Impact
+
+The following entities need to be reviewed:
+
+1. **Ticket:** The duplicate ticket must be closed, and the original ticket must remain the main ticket.
+2. **Comments:** Comments associated with the duplicate ticket must be transferred to the original ticket.
+3. **Watchers:** Watchers associated with the duplicate ticket must be transferred to the original ticket.
+4. **Ticket History / Events:** The merge operation should be recorded with the actor and timestamp, following the ticket history requirement (FR-1.03).
+5. **Users and Roles:** User permissions and tenant access must be checked before allowing a merge.
+
+Note: The exact database table and model names for comments, watchers, and ticket history must be confirmed against the current Prisma schema.
+
+### B. API Impact
+
+A new merge API operation may be required.
+
+**Proposed endpoint:**
+
+`POST /tickets/:originalTicketId/merge`
+
+The request should identify the duplicate ticket to be merged.
+
+The backend should validate the tickets, check permissions, transfer comments and watchers, close the duplicate ticket, and record the merge in ticket history.
+
+Note: This is a proposed endpoint. The final route should follow the existing API naming and versioning conventions in the project.
+
+### C. Application Impact
+
+- Validate that both tickets belong to the same organisation.
+- Check that the user has permission to merge tickets.
+- Prevent merging a ticket with itself.
+- Ensure comments and watchers are transferred correctly.
+- Ensure the duplicate ticket is closed.
+- Maintain ticket history and real-time updates.
+
+## 3. Estimated Effort
+
+**Estimated total effort: 3 working days (provisional).**
+
+| Activity | Estimated effort |
+|---|---:|
+| Review database schema and relationships | 0.5 day |
+| Implement merge operation and transfer data | 1 day |
+| Add validation and permission checks | 0.5 day |
+| Write and execute test cases | 0.5 day |
+| Documentation and final verification | 0.5 day |
+| **Total** | **3 days** |
+
+This estimate assumes the existing ticket architecture can support the merge operation without major redesign. It should be confirmed with the team.
+
+## 4. Risks and Mitigation
+
+| Risk | Mitigation |
+|---|---|
+| Comments or watchers may not transfer correctly. | Validate relationships and test data transfer. |
+| Partial merge may leave inconsistent data. | Use a database transaction so all changes succeed or roll back together. |
+| Unauthorized users may merge tickets. | Apply server-side role and permission checks. |
+| Tickets from different organisations may be merged. | Validate organisation ownership before merging. |
+| Ticket history may become incomplete. | Record the merge action with actor and timestamp. |
+| Existing assignments may be affected. | Confirm assignment-handling rules with the team before implementation. |
+
+## 5. Revised Plan
+
+| Activity | Planned schedule |
+|---|---|
+| Review CR-1 requirements and existing schema | 24 November 2026 |
+| Confirm API design, permissions, and merge behaviour | 25 November 2026 |
+| Finalize impact estimate and effort | 26 November 2026 |
+| Update documentation and project board | 27 November 2026 |
+| Team review and final confirmation | 30 November 2026 |
+
+## 6. Conclusion
+
+CR-1 requires changes to ticket handling, comment and watcher relationships, access control, and ticket history. The provisional estimate is 3 working days, subject to confirmation of the existing database schema and API structure.
+
+The implementation should maintain data consistency, tenant isolation, correct permissions, and complete ticket history.
+
+
 
 *End of Design Document*

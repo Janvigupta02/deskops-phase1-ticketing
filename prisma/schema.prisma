@@ -76,6 +76,8 @@ model User {
   createdTickets   Ticket[]      @relation("CreatedTickets")
   assignedTickets  Ticket[]      @relation("AssignedTickets")
   ticketEvents     TicketEvent[]
+  comments         Comment[]
+  watchedTickets   Watcher[]
 
   @@index([organizationId])
   @@index([email])
@@ -112,6 +114,8 @@ model Ticket {
   createdBy    User          @relation("CreatedTickets", fields: [createdById], references: [id])
   assignedTo   User?         @relation("AssignedTickets", fields: [assignedToId], references: [id])
   events       TicketEvent[]
+  comments     Comment[]
+  watchers     Watcher[]
 
   @@index([organizationId, status])
   @@index([unitId, status])
@@ -143,4 +147,36 @@ model TicketEvent {
   @@index([ticketId])
   @@index([actorId])
   @@map("ticket_events")
+}
+
+model Comment {
+  id         String   @id @default(uuid())
+  ticketId   String   @map("ticket_id")
+  authorId   String   @map("author_id")
+  content    String
+  isInternal Boolean  @default(false) @map("is_internal")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id])
+
+  @@index([ticketId])
+  @@index([authorId])
+  @@map("comments")
+}
+
+model Watcher {
+  id        String   @id @default(uuid())
+  ticketId  String   @map("ticket_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([ticketId, userId])
+  @@index([ticketId])
+  @@index([userId])
+  @@map("watchers")
 }
